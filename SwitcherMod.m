@@ -1,14 +1,66 @@
-#import <SpringBoard/SpringBoard.h>
+////#import <SpringBoard/SpringBoard.h>
+//#import <SpringBoard/SBIconLabel.h>
+//#import <SpringBoard/SBApplicationIcon.h>
+//#import <SpringBoard/SBApplication.h>
+//#import <SpringBoard/SBIcon.h>
+//#import <SpringBoard/SBUIController.h>
+
 #import <UIKit/UIKit.h>
+#import <UIKit/UIApplication2.h>
 #import <CaptainHook/CaptainHook.h>
 
-#define ICONGRAB	0
+#import <substrate.h>
 
 @class SBAppSwitcherModel, SBNowPlayingBar, SBAppSwitcherBarView;
 
+
+/*#define SBWPreActivateDisplayStack        [displayStacks objectAtIndex:0]
+#define SBWActiveDisplayStack             [displayStacks objectAtIndex:1]
+#define SBWSuspendingDisplayStack         [displayStacks objectAtIndex:2]
+#define SBWSuspendedEventOnlyDisplayStack [displayStacks objectAtIndex:3]
+
+static NSMutableArray *displayStacks;*/
+
+
+@interface SBIconLabel : UIControl 
+@end
+@interface SBIcon : UIView
+@end
+@interface SBApplicationIcon : SBIcon
+- (id)initWithApplication:(id)fp8;
+- (id)application;
+- (UIImageView *)iconImageView;
+- (void)setShadowsHidden:(BOOL)fp8;
+@end
+@interface SBDisplay : NSObject
+- (void)kill;
+@end
+@interface SBApplication : SBDisplay
+@end
+@interface SBUIController
+@end
+
+
+@interface SBNowPlayingBarMediaControlsView {
+    SBIconLabel *_trackLabel;
+    SBIconLabel *_toggleLabel;
+}
+@end
+
+@interface SBNowPlayingBarView {
+    SBNowPlayingBarMediaControlsView *_mediaView;
+}
+- (id)mediaView;
+@end
+
+@interface SBNowPlayingBar {
+    SBNowPlayingBarView *_barView;
+}
+@end
+
 @interface SBAppSwitcherController : NSObject {
 	SBAppSwitcherModel *_model;
-	SBNowPlayingBar *_nowPlaying;
+	SBNowPlayingBar *_nowPlayingBar;
 	SBAppSwitcherBarView *_bottomBar;
 	SBApplicationIcon *_pushedIcon;
 	BOOL _editing;
@@ -29,11 +81,12 @@
 + (unsigned int)iconsPerPage:(int)page;
 - (CGPoint)_firstPageOffset;
 - (CGPoint)_firstPageOffset:(CGSize)size;
-- (NSArray *)appIcons;
+- (NSArray *)appIcons;							// 4.x
 - (void)setEditing:(BOOL)editing;
 - (CGRect)_frameForIndex:(NSUInteger)iconIndex withSize:(CGSize)size; // 4.0/4.1
 - (CGRect)_iconFrameForIndex:(NSUInteger)iconIndex withSize:(CGSize)size; // 4.2
 - (void)removeIcon:(SBApplicationIcon *)icon;
+- (NSArray *)iconViews;							// 5.0
 @end
 
 @interface SBAppIconQuitButton : UIButton {
@@ -81,11 +134,36 @@
 @end
 
 
+@interface SBIconView : UIView //(OS50)
+- (id)initWithDefaultSize;
+- (void)setIcon:(id)fp8;
+- (id)icon;
+- (UIImageView *)iconImageView;
+- (void)setLabelHidden:(BOOL)fp8;
+- (void)setShadowsHidden:(BOOL)fp8;
+- (void)setShowsCloseBox:(BOOL)fp8;
+- (void)setShowsCloseBox:(BOOL)fp8 animated:(BOOL)fp12;
+@end
+
+/*@interface SBDisplayStack : NSObject
+- (id)init;
+- (void)dealloc;
+- (id)topApplication;
+@end
+
+@interface SpringBoard : UIApplication
+- (void)applicationDidFinishLaunching:(id)application;
+@end*/
+
+
 CHDeclareClass(SBAppSwitcherController);
 CHDeclareClass(SBAppIconQuitButton);
 CHDeclareClass(SBApplicationIcon);
 CHDeclareClass(SBAppSwitcherBarView);
 CHDeclareClass(SBUIController);
+/*CHDeclareClass(SBIconView);
+CHDeclareClass(SBDisplayStack);
+CHDeclareClass(SpringBoard);*/
 
 static BOOL SMShowActiveApp = NO;
 static BOOL SMWiggleModeOff = YES;
@@ -98,12 +176,8 @@ static NSInteger SMExitedAppStyle = 2;
 static NSInteger SMMIconCount = 5;
 static NSInteger SMMCloseButtonBehavior = 0;
 
-// icon grabbing
-#if ICONGRAB
-static BOOL SMFastIconGrabbing = NO;
-static BOOL SMDragUpToQuit = NO;
-#endif
-// ----
+static BOOL isFirmware5x = NO;
+
 
 enum {
 	SMCloseButtonStyleBlackClose = 0,
@@ -140,189 +214,10 @@ static void LoadSettings()
 	if([dict objectForKey:@"SMWiggleModeOff"] != nil) SMWiggleModeOff = [[dict objectForKey:@"SMWiggleModeOff"] boolValue];
 	if([dict objectForKey:@"SMIconLabelsOff"] != nil) SMIconLabelsOff = [[dict objectForKey:@"SMIconLabelsOff"] boolValue];
 	
-	// icon grabbing
-#if ICONGRAB
-	SMFastIconGrabbing = [[dict objectForKey:@"SMFastIconGrabbing"] boolValue];
-	SMDragUpToQuit = [[dict objectForKey:@"SMDragUpToQuit"] boolValue];
-#endif
-	// ----
-	
 	[dict release];
 }
 
 static SBApplication *activeApplication;
-
-// icon grabbing
-#if ICONGRAB
-static SBIcon *grabbedIcon;
-static NSUInteger grabbedIconIndex;
-
-static void ReleaseGrabbedIcon()
-{
-	if (grabbedIcon) {
-		//[grabbedIcon setAllowJitter:YES];
-		//[grabbedIcon setIsJittering:YES];
-		[grabbedIcon setIsGrabbed:NO];
-		[grabbedIcon release];
-		grabbedIcon = nil;
-	}
-}
-
-CHOptimizedMethod(1, new, BOOL, SBAppSwitcherController, iconPositionIsEditable, SBIcon *, icon)
-{
-	//return CHIvar(self, _editing, BOOL);
-	
-	return SMFastIconGrabbing && CHIvar(self, _editing, BOOL);
-}
-
-CHOptimizedMethod(1, self, void, SBAppSwitcherController, iconHandleLongPress, SBIcon *, icon)
-{
-	ReleaseGrabbedIcon();
-	if (!SMWiggleModeOff)
-		CHSuper(1, SBAppSwitcherController, iconHandleLongPress, icon);
-	//if (CHIvar(self, _editing, BOOL)) {
-	// Enter "grabbed mode"
-	SBAppSwitcherBarView *_bottomBar = CHIvar(self, _bottomBar, SBAppSwitcherBarView *);
-	CHIvar(_bottomBar, _scrollView, UIScrollView *).scrollEnabled = NO;
-	grabbedIcon = [icon retain];
-	grabbedIconIndex = [[_bottomBar appIcons] indexOfObjectIdenticalTo:icon];
-	[icon.superview bringSubviewToFront:icon];
-	[UIView beginAnimations:nil context:NULL];
-	[UIView setAnimationBeginsFromCurrentState:YES];
-	[UIView setAnimationDuration:0.33];
-	[icon setIsGrabbed:YES];
-	[UIView commitAnimations];
-	//} else {
-	//	CHSuper(1, SBAppSwitcherController, iconHandleLongPress, icon);
-	//}
-}
-
-static CGPoint IconPositionForIconIndex(SBAppSwitcherBarView *bottomBar, SBIcon *icon, NSUInteger index)
-{
-	// Find the position of an icon
-	CGSize size = icon.bounds.size;
-	CGRect frame = [bottomBar respondsToSelector:@selector(_iconFrameForIndex:withSize:)]
-	? [bottomBar _iconFrameForIndex:index withSize:size]
-	: [bottomBar _frameForIndex:index withSize:size];
-	frame.origin.x += frame.size.width * 0.5f;
-	frame.origin.y += frame.size.height * 0.5f;
-	return frame.origin;
-}
-
-static CGFloat DistanceSquaredBetweenPoints(CGPoint a, CGPoint b)
-{
-	// Calculate the distance squared between too points
-	// (squared because square roots are expensive and are rarely needed when comparing)
-	CGSize distance;
-	distance.width = a.x - b.x;
-	distance.height = a.y - b.y;
-	return (distance.width * distance.width) + (distance.height * distance.height);
-}
-
-static NSInteger DestinationIndexForIcon(SBAppSwitcherBarView *bottomBar, SBApplicationIcon *icon)
-{
-	// Find the destination index based on the current position of the icon
-	CGPoint currentPosition = [icon center];
-	if (((currentPosition.y < -20.0f) && (SMDragUpToQuit)) && ([icon application] != activeApplication))
-		return -1;
-	NSUInteger destIndex = 0;
-	CGPoint destPosition = IconPositionForIconIndex(bottomBar, icon, 0);
-	CGFloat distanceSquared = DistanceSquaredBetweenPoints(currentPosition, destPosition);
-	NSUInteger count = [[bottomBar appIcons] count];
-	for (NSUInteger i = 1; i < count; i++) {
-		CGPoint proposedPosition = IconPositionForIconIndex(bottomBar, icon, i);
-		CGFloat proposedDistanceSquared = DistanceSquaredBetweenPoints(currentPosition, proposedPosition);
-		if (proposedDistanceSquared < distanceSquared) {
-			destIndex = i;
-			destPosition = proposedPosition;
-			distanceSquared = proposedDistanceSquared;
-		}
-	}
-	return destIndex;
-}
-
-CHOptimizedMethod(2, new, void, SBAppSwitcherController, icon, SBIcon *, icon, touchMovedWithEvent, UIEvent *, event)
-{
-	//if (CHIvar(self, _editing, BOOL)) {
-	SBAppSwitcherBarView *_bottomBar = CHIvar(self, _bottomBar, SBAppSwitcherBarView *);
-	NSUInteger destIndex = DestinationIndexForIcon(_bottomBar, (SBApplicationIcon *)icon);
-	if (grabbedIconIndex != destIndex) {
-		grabbedIconIndex = destIndex;
-		// Index has changed, reflow icons to match
-		[UIView beginAnimations:nil context:NULL];
-		[UIView setAnimationBeginsFromCurrentState:YES];
-		[UIView setAnimationDuration:0.33];
-		NSUInteger i = 0;
-		for (SBIcon *appIcon in [_bottomBar appIcons]) {
-			if (appIcon != icon) {
-				if (i == destIndex)
-					i++;
-				[appIcon setIconPosition:IconPositionForIconIndex(_bottomBar, appIcon, i)];
-				i++;
-			}
-		}
-		[UIView commitAnimations];
-	}
-	//}
-}
-
-CHOptimizedMethod(2, new, void, SBAppSwitcherController, icon, SBIcon *, icon, touchEnded, BOOL, ended)
-{
-	//if (CHIvar(self, _editing, BOOL)) {
-	
-	SBAppSwitcherBarView *_bottomBar = CHIvar(self, _bottomBar, SBAppSwitcherBarView *);
-	CHIvar(_bottomBar, _scrollView, UIScrollView *).scrollEnabled = YES;
-	if (grabbedIconIndex == -1) {
-		ReleaseGrabbedIcon();
-		SBAppIconQuitButton *button = [CHClass(SBAppIconQuitButton) buttonWithType:UIButtonTypeCustom];
-		[button setAppIcon:(SBApplicationIcon *)icon];
-		if([icon respondsToSelector:@selector(closeBoxTapped)])
-			[icon closeBoxTapped];
-		else
-			[self _quitButtonHit:button];
-		
-	} else {
-		// Animate into position
-		NSUInteger destinationIndex = DestinationIndexForIcon(_bottomBar, (SBApplicationIcon *)icon);
-		[UIView beginAnimations:nil context:NULL];
-		[UIView setAnimationBeginsFromCurrentState:YES];
-		[UIView setAnimationDuration:0.33];
-		[icon setIconPosition:IconPositionForIconIndex(_bottomBar, icon, grabbedIconIndex)];
-		ReleaseGrabbedIcon();
-		[UIView commitAnimations];
-		// Update list of icons in the bar
-		NSMutableArray *_appIcons = CHIvar(_bottomBar, _appIcons, NSMutableArray *);
-		NSInteger currentIndex = [_appIcons indexOfObjectIdenticalTo:icon];
-		if ((currentIndex != NSNotFound) && (currentIndex != destinationIndex)) {
-			[_appIcons removeObjectAtIndex:currentIndex];
-			[_appIcons insertObject:icon atIndex:destinationIndex];
-		}
-		// Update priority list in the switcher model
-		SBAppSwitcherModel *_model = CHIvar(self, _model, SBAppSwitcherModel *);
-		if (kCFCoreFoundationVersionNumber >= 550.52) {
-			// 4.2+
-			for (SBApplicationIcon *appIcon in [_appIcons reverseObjectEnumerator])
-				[_model addToFront:[[appIcon application] displayIdentifier]];
-		} else {
-			// 4.0/4.1
-			for (SBApplicationIcon *appIcon in [_appIcons reverseObjectEnumerator])
-				[_model addToFront:[appIcon application]];
-		}
-		
-		if (!SMWiggleModeOff)
-			[self viewWillAppear];	
-	}
-	//}
-}
-
-CHOptimizedMethod(0, self, void, SBAppSwitcherBarView, layoutSubviews)
-{
-	CHSuper(0, SBAppSwitcherBarView, layoutSubviews);
-	if ([grabbedIcon superview] == self)
-		[grabbedIcon bringSubviewToFront:grabbedIcon];
-}
-#endif
-// ----
 
 
 // To do : when updated app, icon should be transparent.
@@ -340,12 +235,25 @@ CHOptimizedMethod(1, self, void, SBAppSwitcherController, applicationDied, SBApp
 	
 	//[self viewWillAppear];
 	
-	for (SBApplicationIcon *icon in [CHIvar(self, _bottomBar, SBAppSwitcherBarView *) appIcons]) {
-		if ([icon application] == application) {
-			[icon iconImageView].alpha = SMExitedIconAlpha / 100;
-			[icon setShadowsHidden:YES];
-			
-			break;
+	SBAppSwitcherBarView *_bottomBar = CHIvar(self, _bottomBar, SBAppSwitcherBarView *);
+	
+	if (isFirmware5x == NO) {
+		for (SBApplicationIcon *icon in [_bottomBar appIcons]) {
+			if ([icon application] == application) {
+				[icon iconImageView].alpha = SMExitedIconAlpha / 100;
+				[icon setShadowsHidden:YES];
+				
+				break;
+			}
+		}
+	} else {
+		for (SBIconView *iconView in [_bottomBar iconViews]) {
+			if ([[iconView icon] application] == application) {
+				[iconView iconImageView].alpha = SMExitedIconAlpha / 100;
+				[iconView setShadowsHidden:YES];
+				
+				break;
+			}
 		}
 	}
 }
@@ -416,57 +324,107 @@ CHOptimizedMethod(0, self, void, SBAppSwitcherController, viewWillAppear)
 			break;
 	}
 	
-	for (SBApplicationIcon *icon in [CHIvar(self, _bottomBar, SBAppSwitcherBarView *) appIcons]) {
-		if (CHIsClass(icon, SBApplicationIcon)) {
-			SBApplication *application = [icon application];
-			BOOL isRunning = [[application process] isRunning];
-			[icon iconImageView].alpha = isRunning ?  1.0f : (SMExitedIconAlpha / 100);
-			[icon setShadowsHidden:!isRunning];
-		
-			SBIconLabel *label = CHIvar(icon, _label, SBIconLabel *);
-			[label setAlpha:(SMIconLabelsOff) ? 0.0f : 1.0f];
-//			[icon setDrawsLabel:(SMIconLabelsOff) ? NO : YES];
-					
-			if (((image == nil) && !SMMCloseButtonShowAlways) || (application == activeApplication))
-			{
-				if([icon respondsToSelector:@selector(setShowsCloseBox:)])
-					[icon setShowsCloseBox:NO];
-				else
-					[icon setCloseBox:nil];
-			}
-			else
-			{
-				SBAppIconQuitButton *button = [CHClass(SBAppIconQuitButton) buttonWithType:UIButtonTypeCustom];
-				[button setAppIcon:(SBApplicationIcon *)icon];
-				[button setImage:image forState:0];
-				[button addTarget:self action:@selector(_quitButtonHit:) forControlEvents:UIControlEventTouchUpInside];
-				[button sizeToFit];
-				CGRect frame = button.frame;
-				frame.origin.x -= 10.0f;
-				frame.origin.y -= 10.0f;
-				button.frame = frame;
-				if ((/*SMWiggleModeOff &&*/ SMMIconEditingOn) || SMMCloseButtonShowAlways) {
+	SBAppSwitcherBarView *_bottomBar = CHIvar(self, _bottomBar, SBAppSwitcherBarView *);
+	
+	if (isFirmware5x == NO) {
+		for (SBApplicationIcon *icon in [_bottomBar appIcons]) {
+			if (CHIsClass(icon, SBApplicationIcon)) {
+				SBApplication *application = [icon application];
+				BOOL isRunning = [[application process] isRunning];
+				[icon iconImageView].alpha = isRunning ?  1.0f : (SMExitedIconAlpha / 100);
+				[icon setShadowsHidden:!isRunning];
+			
+				SBIconLabel *label = CHIvar(icon, _label, SBIconLabel *);
+				[label setAlpha:(SMIconLabelsOff) ? 0.0f : 1.0f];
+	//			[icon setDrawsLabel:(SMIconLabelsOff) ? NO : YES];
+						
+				if (((image == nil) && !SMMCloseButtonShowAlways) || (application == activeApplication))
+				{
 					if([icon respondsToSelector:@selector(setShowsCloseBox:)])
-					{
-//						[icon setShowsCloseBox:NO];
-						[icon setShowsCloseBox:YES];
-					}
+						[icon setShowsCloseBox:NO];
 					else
-						[icon setCloseBox:button];
-				} else [icon setShowsCloseBox:NO];
+						[icon setCloseBox:nil];
+				}
+				else
+				{
+					SBAppIconQuitButton *button = [CHClass(SBAppIconQuitButton) buttonWithType:UIButtonTypeCustom];
+					[button setAppIcon:(SBApplicationIcon *)icon];
+					[button setImage:image forState:0];
+					[button addTarget:self action:@selector(_quitButtonHit:) forControlEvents:UIControlEventTouchUpInside];
+					[button sizeToFit];
+					CGRect frame = button.frame;
+					frame.origin.x -= 10.0f;
+					frame.origin.y -= 10.0f;
+					button.frame = frame;
+					if ((/*SMWiggleModeOff &&*/ SMMIconEditingOn) || SMMCloseButtonShowAlways) {
+						if([icon respondsToSelector:@selector(setShowsCloseBox:)])
+						{
+	//						[icon setShowsCloseBox:NO];
+							[icon setShowsCloseBox:YES];
+						}
+						else
+							[icon setCloseBox:button];
+					} else [icon setShowsCloseBox:NO];
+				}
+			}
+		}
+	} else {
+		for (SBIconView *iconView in [_bottomBar iconViews]) {
+			if (CHIsClass([iconView icon], SBApplicationIcon)) {
+				SBApplication *application = [[iconView icon] application];
+				BOOL isRunning = [[application process] isRunning];
+				[iconView iconImageView].alpha = isRunning ?  1.0f : (SMExitedIconAlpha / 100);
+				[iconView setShadowsHidden:!isRunning];
+				
+				[iconView setLabelHidden:SMIconLabelsOff];
+				
+				if (((image == nil) && !SMMCloseButtonShowAlways) || (application == activeApplication))
+				{
+					if([iconView respondsToSelector:@selector(setShowsCloseBox:)])
+						[iconView setShowsCloseBox:NO];
+				}
+				else
+				{
+					SBAppIconQuitButton *button = [CHClass(SBAppIconQuitButton) buttonWithType:UIButtonTypeCustom];
+					[button setAppIcon:(SBApplicationIcon *)[iconView icon]];
+					[button setImage:image forState:0];
+					[button addTarget:self action:@selector(_quitButtonHit:) forControlEvents:UIControlEventTouchUpInside];
+					[button sizeToFit];
+					CGRect frame = button.frame;
+					frame.origin.x -= 10.0f;
+					frame.origin.y -= 10.0f;
+					button.frame = frame;
+					if ((/*SMWiggleModeOff &&*/ SMMIconEditingOn) || SMMCloseButtonShowAlways) {
+						if([iconView respondsToSelector:@selector(setShowsCloseBox:)])
+						{
+	//						[iconView setShowsCloseBox:NO];
+							[iconView setShowsCloseBox:YES];
+						}
+						//else
+						//	[iconView setCloseBox:button];
+					} else [iconView setShowsCloseBox:NO];
+				}
 			}
 		}
 	}
 }
 
-CHOptimizedMethod(1, self, void, SBAppSwitcherController, iconTapped, SBApplicationIcon *, icon)
+CHOptimizedMethod(1, self, void, SBAppSwitcherController, iconTapped, id, icon)
 {
-	if ([icon application] == activeApplication)
-		[CHSharedInstance(SBUIController) _toggleSwitcher];
-	else
-		CHSuper(1, SBAppSwitcherController, iconTapped, icon);
+	if (isFirmware5x == NO) {
+		if ([(SBApplicationIcon *)icon application] == activeApplication)
+			[CHSharedInstance(SBUIController) _toggleSwitcher];
+		else
+			CHSuper(1, SBAppSwitcherController, iconTapped, icon);
+	} else {
+		if ([[(SBIconView *)icon icon] application] == activeApplication)
+			[CHSharedInstance(SBUIController) _toggleSwitcher];
+		else
+			CHSuper(1, SBAppSwitcherController, iconTapped, icon);
+	}
 }
 
+// for iOS 4x
 CHOptimizedMethod(2, self, NSArray *, SBAppSwitcherController, _applicationIconsExcept, SBApplication *, application, forOrientation, UIInterfaceOrientation, orientation)
 {
 	[activeApplication release];
@@ -484,7 +442,60 @@ CHOptimizedMethod(2, self, NSArray *, SBAppSwitcherController, _applicationIcons
 	}
 }
 
-CHOptimizedMethod(1, self, void, SBAppSwitcherController, iconCloseBoxTapped, SBApplicationIcon *, icon)
+// for iOS 5
+CHOptimizedMethod(0, self, NSArray *, SBAppSwitcherController, _applicationIconsExceptTopApp)
+{
+	/*SBApplication *application = [SBWActiveDisplayStack topApplication];
+	NSLog(@"application %@", application);
+	
+	[activeApplication release];
+	activeApplication = [application copy];
+	
+	SBIconView *currIconView = [CHAlloc(SBIconView) initWithDefaultSize];
+	NSLog(@"currIconView %@", currIconView);
+	SBApplicationIcon *appIcon = [CHAlloc(SBApplicationIcon) initWithApplication:application];
+	NSLog(@"appIcon %@", appIcon);
+	[currIconView setIcon:appIcon];
+	//[appIcon release];*/
+	
+	if (SMExitedAppStyle == SMExitedAppStyleHidden) {
+		NSMutableArray *newResult = [NSMutableArray array];
+		/*if (SMShowActiveApp && currIconView != nil && appIcon != nil)
+			[newResult addObject:currIconView];
+		else
+			[currIconView release];*/
+		
+		for (SBIconView *iconView in CHSuper(0, SBAppSwitcherController, _applicationIconsExceptTopApp))
+			if ([[[[iconView icon] application] process] isRunning])
+				[newResult addObject:iconView];
+		return newResult;
+	} else {
+		return CHSuper(0, SBAppSwitcherController, _applicationIconsExceptTopApp);
+	}
+}
+
+/*CHOptimizedMethod(0, self, id, SBDisplayStack, init)
+{
+	if ((self = CHSuper(0, SBDisplayStack, init))) {
+		[displayStacks addObject:self];
+	}
+	return self;
+}
+
+CHOptimizedMethod(0, self, void, SBDisplayStack, dealloc)
+{
+	[displayStacks removeObject:self];
+	CHSuper(0, SBDisplayStack, dealloc);
+}
+
+CHOptimizedMethod(1, self, void, SpringBoard, applicationDidFinishLaunching, id, application)
+{
+	displayStacks = (NSMutableArray *)CFArrayCreateMutable(kCFAllocatorDefault, 0, NULL);
+	CHSuper(1, SpringBoard, applicationDidFinishLaunching, application);
+}*/
+
+
+CHOptimizedMethod(1, self, void, SBAppSwitcherController, iconCloseBoxTapped, id, icon)
 {
 	if (SMMCloseButtonBehavior == SMMCloseButtonBehaviorDefault) {
 		CHSuper(1, SBAppSwitcherController, iconCloseBoxTapped, icon);
@@ -495,7 +506,12 @@ CHOptimizedMethod(1, self, void, SBAppSwitcherController, iconCloseBoxTapped, SB
 		return;
 	}
 
-	SBApplication *application = [icon application];
+	SBApplication *application = nil;
+	if (isFirmware5x == NO)
+		application = [(SBApplicationIcon *)icon application];
+	else 
+		application = [[(SBIconView *)icon icon] application];
+	
 	BOOL isRunning = [[application process] isRunning];
 	
 	if (isRunning) {
@@ -547,13 +563,16 @@ CHOptimizedMethod(1, self, CGPoint, SBAppSwitcherBarView, _firstPageOffset, CGSi
     return CHSuper(1, SBAppSwitcherBarView, _firstPageOffset, offset);
 }
 
-// 4.2
+// 4.2 and 5.0
 CHOptimizedMethod(2, self, CGRect, SBAppSwitcherBarView, _iconFrameForIndex, NSUInteger, index, withSize, CGSize, size) {
     return make_frame(self, index, size, CHSuper(2, SBAppSwitcherBarView, _iconFrameForIndex, index, withSize, size));
 }
 
 
 CHConstructor {
+	Class $UIApplication = objc_getClass("UIApplication");
+	isFirmware5x = (class_getInstanceMethod($UIApplication, @selector(_loadMainNibFile)) == NULL);
+	
 	CHLoadLateClass(SBAppSwitcherController);
 	CHHook(1, SBAppSwitcherController, applicationLaunched);
 	CHHook(1, SBAppSwitcherController, applicationDied);
@@ -565,28 +584,16 @@ CHConstructor {
 	CHHook(1, SBAppSwitcherController, iconTapped);
 	CHHook(1, SBAppSwitcherController, iconCloseBoxTapped);
 	CHHook(2, SBAppSwitcherController, _applicationIconsExcept, forOrientation);
-	
-	// icon grabbing
-#if ICONGRAB
-	CHHook(1, SBAppSwitcherController, iconTapped);
-	CHHook(1, SBAppSwitcherController, iconPositionIsEditable);
-	CHHook(1, SBAppSwitcherController, iconHandleLongPress);
-	CHHook(2, SBAppSwitcherController, icon, touchMovedWithEvent);
-	CHHook(2, SBAppSwitcherController, icon, touchEnded);
-#endif
-	// ----
+	CHHook(0, SBAppSwitcherController, _applicationIconsExceptTopApp);
+	/*CHHook(0, SBDisplayStack, init);
+	CHHook(0, SBDisplayStack, dealloc);
+	CHHook(1, SpringBoard, applicationDidFinishLaunching);*/
 
 	CHLoadLateClass(SBAppSwitcherBarView);
 	CHHook(1, SBAppSwitcherBarView, iconsPerPage);
 	CHHook(2, SBAppSwitcherBarView, _frameForIndex, withSize);
 	CHHook(1, SBAppSwitcherBarView, _firstPageOffset);
 	CHHook(2, SBAppSwitcherBarView, _iconFrameForIndex, withSize);
-	
-	// icon grabbing
-#if ICONGRAB
-	CHHook(0, SBAppSwitcherBarView, layoutSubviews);
-#endif
-	// ----
 	
 	CHLoadLateClass(SBAppIconQuitButton);
 	CHLoadLateClass(SBApplicationIcon);

@@ -2,14 +2,16 @@ Package: me.devbug.switchermodmini
 Priority: optional
 Section: Tweaks
 Architecture: iphoneos-arm
-Version: 0.2
+Version: 0.3
 Description: mini improvements for the app switcher
 	make exited apps transparent, show active app
 Name: SwitcherModMini
-Depends: firmware (>= 4.0), mobilesubstrate, preferenceloader (>= 2.0)
+Depends: firmware (>= 4.0), mobilesubstrate (>= 0.9.3901), preferenceloader (>= 2.0.4-1)
 Author: deVbug <devbug@devbug.me>
 Maintainer: deVbug <devbug@devbug.me>
 Website: http://devbug.me/iphone/cydia/switchermodmini/index.html
 Depiction: http://devbug.me/iphone/cydia/switchermodmini/index.html
 dev: deVbug
 Tag: purpose::extension
+Conflicts: com.collab.switchermod, com.chpwn.five-icon-switcher
+Replaces: com.collab.switchermod, com.chpwn.five-icon-switcher
