@@ -180,7 +180,7 @@ static BOOL SMMCloseButtonShowAlways = NO;
 static float SMExitedIconAlpha = 50.0f;
 static NSInteger SMCloseButtonStyle = 0;
 static NSInteger SMExitedAppStyle = 2;
-static NSInteger SMMIconCount = 5;
+static NSInteger SMMIconCount = 4;
 static NSInteger SMMCloseButtonBehavior = 0;
 
 static BOOL isFirmware5x = NO;

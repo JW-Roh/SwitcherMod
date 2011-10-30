@@ -19,7 +19,7 @@
 			<key>cell</key>
 			<string>PSLinkListCell</string>
 			<key>default</key>
-			<integer>5</integer>
+			<integer>4</integer>
 			<key>detail</key>
 			<string>PSListItemsController</string>
 			<key>key</key>
@@ -57,11 +57,10 @@
 			<key>PostNotification</key>
 			<string>me.devbug.switchermodmini.settingschanged</string>
 		</dict>
-		
 		<dict>
-            <key>cell</key>
-            <string>PSGroupCell</string>
-        </dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+		</dict>
 		<dict>
 			<key>cell</key>
 			<string>PSSwitchCell</string>
@@ -102,7 +101,7 @@
 				<string>Remove</string>
 			</array>
 		</dict>
-        <dict>
+		<dict>
 			<key>cell</key>
 			<string>PSSwitchCell</string>
 			<key>default</key>
@@ -117,12 +116,12 @@
 			<string>me.devbug.switchermodmini.settingschanged</string>
 		</dict>
 		<dict>
-            <key>cell</key>
-            <string>PSGroupCell</string>
+			<key>cell</key>
+			<string>PSGroupCell</string>
 			<key>label</key>
 			<string>Edit mode</string>
-        </dict>
-        <dict>
+		</dict>
+		<dict>
 			<key>cell</key>
 			<string>PSSwitchCell</string>
 			<key>default</key>
@@ -175,7 +174,7 @@
 			<array>
 				<string>Hidden</string>
 				<string>Red Minus</string>
-				<string>Black 'X'</string>
+				<string>Black &apos;X&apos;</string>
 			</array>
 		</dict>
 		<dict>
@@ -209,30 +208,29 @@
 			</array>
 		</dict>
 		<dict>
-            <key>cell</key>
-            <string>PSGroupCell</string>
-            <key>label</key>
-            <string>Inactive Recent Icons Alpha %</string>
-        </dict>
+			<key>cell</key>
+			<string>PSGroupCell</string>
+			<key>label</key>
+			<string>Inactive Recent Icons Alpha %</string>
+		</dict>
 		<dict>
-            <key>cell</key>
-            <string>PSSliderCell</string>
-            <key>default</key>
-            <real>50.0</real>
-            <key>min</key>
-            <real>0.0</real>
-            <key>max</key>
-            <real>100.0</real>
-            <key>showValue</key>
-            <true/>
-            <key>key</key>
-            <string>SMExitedIconAlpha</string>
-            <key>defaults</key>
-            <string>me.devbug.switchermodmini</string>
-            <key>PostNotification</key>
-            <string>me.devbug.switchermodmini.settingschanged</string>
-        </dict>        
-
-    </array>
+			<key>cell</key>
+			<string>PSSliderCell</string>
+			<key>default</key>
+			<real>50</real>
+			<key>min</key>
+			<real>0</real>
+			<key>max</key>
+			<real>100</real>
+			<key>showValue</key>
+			<true/>
+			<key>key</key>
+			<string>SMExitedIconAlpha</string>
+			<key>defaults</key>
+			<string>me.devbug.switchermodmini</string>
+			<key>PostNotification</key>
+			<string>me.devbug.switchermodmini.settingschanged</string>
+		</dict>
+	</array>
 </dict>
 </plist>
