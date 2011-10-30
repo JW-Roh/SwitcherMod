@@ -1,10 +1,3 @@
-////#import <SpringBoard/SpringBoard.h>
-//#import <SpringBoard/SBIconLabel.h>
-//#import <SpringBoard/SBApplicationIcon.h>
-//#import <SpringBoard/SBApplication.h>
-//#import <SpringBoard/SBIcon.h>
-//#import <SpringBoard/SBUIController.h>
-
 #import <UIKit/UIKit.h>
 #import <UIKit/UIApplication2.h>
 #import <CaptainHook/CaptainHook.h>
@@ -12,14 +5,6 @@
 #import <substrate.h>
 
 @class SBAppSwitcherModel, SBNowPlayingBar, SBAppSwitcherBarView;
-
-
-/*#define SBWPreActivateDisplayStack        [displayStacks objectAtIndex:0]
-#define SBWActiveDisplayStack             [displayStacks objectAtIndex:1]
-#define SBWSuspendingDisplayStack         [displayStacks objectAtIndex:2]
-#define SBWSuspendedEventOnlyDisplayStack [displayStacks objectAtIndex:3]
-
-static NSMutableArray *displayStacks;*/
 
 
 @interface SBIconLabel : UIControl 
@@ -69,11 +54,16 @@ static NSMutableArray *displayStacks;*/
 + (id)sharedInstance;
 - (void)viewWillAppear;
 - (void)viewDidDisappear;
+- (void)downloadRemoved:(id)fp8;
+- (void)downloadChanged:(id)fp8;
+- (void)downloadItemUpdatingStatusChanged:(id)fp8;
 - (void)_quitButtonHit:(id)sender;
 - (BOOL)_inEditMode;
 - (void)_beginEditing;
 - (void)_stopEditing;
 //- (void)_removeApplicationFromRecents:(SBApplication *)application;
+- (id)topAppDisplayID;							// 5.0
+- (void)setTopAppDisplayID:(id)fp8;				// 5.0
 @end
 
 @interface SBAppSwitcherBarView : UIView {
@@ -122,6 +112,7 @@ static NSMutableArray *displayStacks;*/
 @interface SBProcess : NSObject {
 }
 - (BOOL)isRunning;
+- (void)killWithSignal:(int)fp8;
 @end
 
 @interface SBApplication (OS40)
@@ -138,8 +129,17 @@ static NSMutableArray *displayStacks;*/
 - (id)initWithDefaultSize;
 - (void)setIcon:(id)fp8;
 - (id)icon;
+- (int)location;
+- (void)setLocation:(int)fp8;
 - (UIImageView *)iconImageView;
+- (void)setIsHidden:(BOOL)fp8 animate:(BOOL)fp12;
+- (BOOL)isHidden;
+- (void)setIconImageAlpha:(float)fp8;
+- (void)setIconLabelAlpha:(float)fp8;
 - (void)setLabelHidden:(BOOL)fp8;
+- (BOOL)isHighlighted;
+- (void)setHighlighted:(BOOL)fp8;
+- (void)setHighlighted:(BOOL)fp8 delayUnhighlight:(BOOL)fp12;
 - (void)setShadowsHidden:(BOOL)fp8;
 - (void)setShowsCloseBox:(BOOL)fp8;
 - (void)setShowsCloseBox:(BOOL)fp8 animated:(BOOL)fp12;
@@ -151,15 +151,16 @@ static NSMutableArray *displayStacks;*/
 @interface SBNewsstandIcon : SBFolderIcon
 @end
 
-/*@interface SBDisplayStack : NSObject
-- (id)init;
-- (void)dealloc;
-- (id)topApplication;
+@interface SBIconModel : NSObject
++ (id)sharedInstance;
+- (id)applicationIconForDisplayIdentifier:(id)fp8;
 @end
 
-@interface SpringBoard : UIApplication
-- (void)applicationDidFinishLaunching:(id)application;
-@end*/
+@interface SBIconViewMap : NSObject
++ (id)homescreenMap;
+- (id)mappedIconViewForIcon:(id)fp8;
+- (id)iconViewForIcon:(id)fp8;
+@end
 
 
 CHDeclareClass(SBAppSwitcherController);
@@ -168,9 +169,7 @@ CHDeclareClass(SBApplicationIcon);
 CHDeclareClass(SBAppSwitcherBarView);
 CHDeclareClass(SBUIController);
 //CHDeclareClass(SBNewsstandIcon);
-/*CHDeclareClass(SBIconView);
-CHDeclareClass(SBDisplayStack);
-CHDeclareClass(SpringBoard);*/
+//CHDeclareClass(SBIconView);
 
 static BOOL SMShowActiveApp = NO;
 static BOOL SMWiggleModeOff = YES;
@@ -239,8 +238,6 @@ CHOptimizedMethod(1, self, void, SBAppSwitcherController, applicationLaunched, S
 CHOptimizedMethod(1, self, void, SBAppSwitcherController, applicationDied, SBApplication *, application)
 {
 	CHSuper(1, SBAppSwitcherController, applicationDied, application);
-	
-	//[self viewWillAppear];
 	
 	SBAppSwitcherBarView *_bottomBar = CHIvar(self, _bottomBar, SBAppSwitcherBarView *);
 	
@@ -439,54 +436,35 @@ CHOptimizedMethod(2, self, NSArray *, SBAppSwitcherController, _applicationIcons
 // for iOS 5
 CHOptimizedMethod(0, self, NSArray *, SBAppSwitcherController, _applicationIconsExceptTopApp)
 {
-	/*SBApplication *application = [SBWActiveDisplayStack topApplication];
-	NSLog(@"application %@", application);
+	SBApplicationIcon *appIcon = [[NSClassFromString(@"SBIconModel") sharedInstance] applicationIconForDisplayIdentifier:[self topAppDisplayID]];
+	SBApplication *application = [appIcon application];
 	
 	[activeApplication release];
 	activeApplication = [application copy];
 	
-	SBIconView *currIconView = [CHAlloc(SBIconView) initWithDefaultSize];
-	NSLog(@"currIconView %@", currIconView);
-	SBApplicationIcon *appIcon = [CHAlloc(SBApplicationIcon) initWithApplication:application];
-	NSLog(@"appIcon %@", appIcon);
-	[currIconView setIcon:appIcon];
-	//[appIcon release];*/
+	NSMutableArray *newResult = [NSMutableArray array];
+	
+	if (SMShowActiveApp && appIcon != nil) {
+		SBIconView *iconView = [[CHIvar(self, _bottomBar, SBAppSwitcherBarView *) iconViews] objectAtIndex:0];
+		if (iconView != nil) {
+			[iconView setIcon:appIcon];
+			[newResult addObject:iconView];
+		}
+	}
+	
+	NSArray *appIcons = CHSuper(0, SBAppSwitcherController, _applicationIconsExceptTopApp);
 	
 	if (SMExitedAppStyle == SMExitedAppStyleHidden) {
-		NSMutableArray *newResult = [NSMutableArray array];
-		/*if (SMShowActiveApp && currIconView != nil && appIcon != nil)
-			[newResult addObject:currIconView];
-		else
-			[currIconView release];*/
-		
-		for (SBIconView *iconView in CHSuper(0, SBAppSwitcherController, _applicationIconsExceptTopApp))
+		for (SBIconView *iconView in appIcons)
 			if ([[[[iconView icon] application] process] isRunning])
 				[newResult addObject:iconView];
 		return newResult;
 	} else {
-		return CHSuper(0, SBAppSwitcherController, _applicationIconsExceptTopApp);
+		for (SBIconView *iconView in appIcons)
+			[newResult addObject:iconView];
+		return newResult;
 	}
 }
-
-/*CHOptimizedMethod(0, self, id, SBDisplayStack, init)
-{
-	if ((self = CHSuper(0, SBDisplayStack, init))) {
-		[displayStacks addObject:self];
-	}
-	return self;
-}
-
-CHOptimizedMethod(0, self, void, SBDisplayStack, dealloc)
-{
-	[displayStacks removeObject:self];
-	CHSuper(0, SBDisplayStack, dealloc);
-}
-
-CHOptimizedMethod(1, self, void, SpringBoard, applicationDidFinishLaunching, id, application)
-{
-	displayStacks = (NSMutableArray *)CFArrayCreateMutable(kCFAllocatorDefault, 0, NULL);
-	CHSuper(1, SpringBoard, applicationDidFinishLaunching, application);
-}*/
 
 
 CHOptimizedMethod(1, self, void, SBAppSwitcherController, iconCloseBoxTapped, id, icon)
@@ -510,6 +488,7 @@ CHOptimizedMethod(1, self, void, SBAppSwitcherController, iconCloseBoxTapped, id
 	
 	if (isRunning) {
 		[application kill];
+		//[[application process] killWithSignal:SIGTERM];
 	} else {
 		if (SMMCloseButtonBehavior != SMMCloseButtonBehaviorExitOnly)
 			CHSuper(1, SBAppSwitcherController, iconCloseBoxTapped, icon);
@@ -579,9 +558,6 @@ CHConstructor {
 	CHHook(1, SBAppSwitcherController, iconCloseBoxTapped);
 	CHHook(2, SBAppSwitcherController, _applicationIconsExcept, forOrientation);
 	CHHook(0, SBAppSwitcherController, _applicationIconsExceptTopApp);
-	/*CHHook(0, SBDisplayStack, init);
-	CHHook(0, SBDisplayStack, dealloc);
-	CHHook(1, SpringBoard, applicationDidFinishLaunching);*/
 
 	CHLoadLateClass(SBAppSwitcherBarView);
 	CHHook(1, SBAppSwitcherBarView, iconsPerPage);
