@@ -1,5 +1,4 @@
 #import <UIKit/UIKit.h>
-#import <UIKit/UIApplication2.h>
 #import <CaptainHook/CaptainHook.h>
 
 #import <substrate.h>
@@ -156,20 +155,12 @@
 - (id)applicationIconForDisplayIdentifier:(id)fp8;
 @end
 
-@interface SBIconViewMap : NSObject
-+ (id)homescreenMap;
-- (id)mappedIconViewForIcon:(id)fp8;
-- (id)iconViewForIcon:(id)fp8;
-@end
-
 
 CHDeclareClass(SBAppSwitcherController);
 CHDeclareClass(SBAppIconQuitButton);
 CHDeclareClass(SBApplicationIcon);
 CHDeclareClass(SBAppSwitcherBarView);
 CHDeclareClass(SBUIController);
-//CHDeclareClass(SBNewsstandIcon);
-//CHDeclareClass(SBIconView);
 
 static BOOL SMShowActiveApp = NO;
 static BOOL SMWiggleModeOff = YES;
@@ -446,6 +437,10 @@ CHOptimizedMethod(0, self, NSArray *, SBAppSwitcherController, _applicationIcons
 	
 	if (SMShowActiveApp && appIcon != nil) {
 		SBIconView *iconView = [[CHIvar(self, _bottomBar, SBAppSwitcherBarView *) iconViews] objectAtIndex:0];
+		if ([NSStringFromClass([iconView class]) isEqualToString:@"SBNewsstandIconView"])
+			iconView = [[CHIvar(self, _bottomBar, SBAppSwitcherBarView *) iconViews] objectAtIndex:1];
+		
+		// TODO if iconView nil, should make new iconView (it will appear once immediately after respring or reboot)
 		if (iconView != nil) {
 			[iconView setIcon:appIcon];
 			[newResult addObject:iconView];
@@ -458,12 +453,12 @@ CHOptimizedMethod(0, self, NSArray *, SBAppSwitcherController, _applicationIcons
 		for (SBIconView *iconView in appIcons)
 			if ([[[[iconView icon] application] process] isRunning])
 				[newResult addObject:iconView];
-		return newResult;
 	} else {
 		for (SBIconView *iconView in appIcons)
 			[newResult addObject:iconView];
-		return newResult;
 	}
+	
+	return newResult;
 }
 
 
@@ -543,8 +538,8 @@ CHOptimizedMethod(2, self, CGRect, SBAppSwitcherBarView, _iconFrameForIndex, NSU
 
 
 CHConstructor {
-	Class $UIApplication = objc_getClass("UIApplication");
-	isFirmware5x = (class_getInstanceMethod($UIApplication, @selector(_loadMainNibFile)) == NULL);
+	Class $SBAppSwitcherController = objc_getClass("SBAppSwitcherController");
+	isFirmware5x = (class_getInstanceMethod($SBAppSwitcherController, @selector(_applicationIconsExcept:forOrientation:)) == NULL);
 	
 	CHLoadLateClass(SBAppSwitcherController);
 	CHHook(1, SBAppSwitcherController, applicationLaunched);
