@@ -145,6 +145,12 @@ static NSMutableArray *displayStacks;*/
 - (void)setShowsCloseBox:(BOOL)fp8 animated:(BOOL)fp12;
 @end
 
+@interface SBFolderIcon : SBIcon
+@end
+
+@interface SBNewsstandIcon : SBFolderIcon
+@end
+
 /*@interface SBDisplayStack : NSObject
 - (id)init;
 - (void)dealloc;
@@ -161,6 +167,7 @@ CHDeclareClass(SBAppIconQuitButton);
 CHDeclareClass(SBApplicationIcon);
 CHDeclareClass(SBAppSwitcherBarView);
 CHDeclareClass(SBUIController);
+//CHDeclareClass(SBNewsstandIcon);
 /*CHDeclareClass(SBIconView);
 CHDeclareClass(SBDisplayStack);
 CHDeclareClass(SpringBoard);*/
@@ -370,39 +377,26 @@ CHOptimizedMethod(0, self, void, SBAppSwitcherController, viewWillAppear)
 		}
 	} else {
 		for (SBIconView *iconView in [_bottomBar iconViews]) {
-			if (CHIsClass([iconView icon], SBApplicationIcon)) {
-				SBApplication *application = [[iconView icon] application];
-				BOOL isRunning = [[application process] isRunning];
+			if (CHIsClass([iconView icon], SBApplicationIcon) || [NSStringFromClass([[iconView icon] class]) isEqualToString:@"SBNewsstandIcon"]) {
+				SBApplication *application = nil;
+				BOOL isRunning = YES;
+				
+				if (CHIsClass([iconView icon], SBApplicationIcon)) {
+					application = [[iconView icon] application];
+					isRunning = [[application process] isRunning];
+				}
 				[iconView iconImageView].alpha = isRunning ?  1.0f : (SMExitedIconAlpha / 100);
 				[iconView setShadowsHidden:!isRunning];
 				
 				[iconView setLabelHidden:SMIconLabelsOff];
 				
-				if (((image == nil) && !SMMCloseButtonShowAlways) || (application == activeApplication))
-				{
-					if([iconView respondsToSelector:@selector(setShowsCloseBox:)])
-						[iconView setShowsCloseBox:NO];
-				}
-				else
-				{
-					SBAppIconQuitButton *button = [CHClass(SBAppIconQuitButton) buttonWithType:UIButtonTypeCustom];
-					[button setAppIcon:(SBApplicationIcon *)[iconView icon]];
-					[button setImage:image forState:0];
-					[button addTarget:self action:@selector(_quitButtonHit:) forControlEvents:UIControlEventTouchUpInside];
-					[button sizeToFit];
-					CGRect frame = button.frame;
-					frame.origin.x -= 10.0f;
-					frame.origin.y -= 10.0f;
-					button.frame = frame;
+				if (((image == nil) && !SMMCloseButtonShowAlways) || (activeApplication != nil && application == activeApplication)) {
+					[iconView setShowsCloseBox:NO];
+				} else {
 					if ((/*SMWiggleModeOff &&*/ SMMIconEditingOn) || SMMCloseButtonShowAlways) {
-						if([iconView respondsToSelector:@selector(setShowsCloseBox:)])
-						{
-	//						[iconView setShowsCloseBox:NO];
-							[iconView setShowsCloseBox:YES];
-						}
-						//else
-						//	[iconView setCloseBox:button];
-					} else [iconView setShowsCloseBox:NO];
+						[iconView setShowsCloseBox:YES];
+					} else 
+						[iconView setShowsCloseBox:NO];
 				}
 			}
 		}
@@ -417,7 +411,7 @@ CHOptimizedMethod(1, self, void, SBAppSwitcherController, iconTapped, id, icon)
 		else
 			CHSuper(1, SBAppSwitcherController, iconTapped, icon);
 	} else {
-		if ([[(SBIconView *)icon icon] application] == activeApplication)
+		if (activeApplication != nil && [[(SBIconView *)icon icon] application] == activeApplication)
 			[CHSharedInstance(SBUIController) _toggleSwitcher];
 		else
 			CHSuper(1, SBAppSwitcherController, iconTapped, icon);
