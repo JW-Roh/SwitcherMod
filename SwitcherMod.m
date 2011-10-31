@@ -142,6 +142,10 @@
 - (void)setShadowsHidden:(BOOL)fp8;
 - (void)setShowsCloseBox:(BOOL)fp8;
 - (void)setShowsCloseBox:(BOOL)fp8 animated:(BOOL)fp12;
+- (id)locker;
+- (void)setLocker:(id)fp8;
+- (id)delegate;
+- (void)setDelegate:(id)fp8;
 @end
 
 @interface SBFolderIcon : SBIcon
@@ -154,6 +158,11 @@
 + (id)sharedInstance;
 - (id)applicationIconForDisplayIdentifier:(id)fp8;
 @end
+
+/*@interface SBIconViewMap
++ (id)homescreenMap;
++ (Class)iconViewClassForIcon:(id)fp8 location:(int)fp12;
+@end*/
 
 
 CHDeclareClass(SBAppSwitcherController);
@@ -436,12 +445,11 @@ CHOptimizedMethod(0, self, NSArray *, SBAppSwitcherController, _applicationIcons
 	NSMutableArray *newResult = [NSMutableArray array];
 	
 	if (SMShowActiveApp && appIcon != nil) {
-		SBIconView *iconView = [[CHIvar(self, _bottomBar, SBAppSwitcherBarView *) iconViews] objectAtIndex:0];
-		if ([NSStringFromClass([iconView class]) isEqualToString:@"SBNewsstandIconView"])
-			iconView = [[CHIvar(self, _bottomBar, SBAppSwitcherBarView *) iconViews] objectAtIndex:1];
+		SBIconView *iconView = [[[NSClassFromString(@"SBIconView") alloc] initWithDefaultSize] autorelease];
 		
-		// TODO if iconView nil, should make new iconView (it will appear once immediately after respring or reboot)
 		if (iconView != nil) {
+			[iconView setLocation:2];
+			[iconView setDelegate:self];
 			[iconView setIcon:appIcon];
 			[newResult addObject:iconView];
 		}
