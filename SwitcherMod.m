@@ -1,26 +1,30 @@
 #import <UIKit/UIKit.h>
 #import <CaptainHook/CaptainHook.h>
 
-#import <substrate.h>
 
 @class SBAppSwitcherModel, SBNowPlayingBar, SBAppSwitcherBarView;
 
 
 @interface SBIconLabel : UIControl 
 @end
+
 @interface SBIcon : UIView
 @end
+
 @interface SBApplicationIcon : SBIcon
 - (id)initWithApplication:(id)fp8;
 - (id)application;
 - (UIImageView *)iconImageView;
 - (void)setShadowsHidden:(BOOL)fp8;
 @end
+
 @interface SBDisplay : NSObject
 - (void)kill;
 @end
+
 @interface SBApplication : SBDisplay
 @end
+
 @interface SBUIController
 @end
 
@@ -159,11 +163,6 @@
 - (id)applicationIconForDisplayIdentifier:(id)fp8;
 @end
 
-/*@interface SBIconViewMap
-+ (id)homescreenMap;
-+ (Class)iconViewClassForIcon:(id)fp8 location:(int)fp12;
-@end*/
-
 
 CHDeclareClass(SBAppSwitcherController);
 CHDeclareClass(SBAppIconQuitButton);
@@ -232,7 +231,28 @@ CHOptimizedMethod(1, self, void, SBAppSwitcherController, applicationLaunched, S
 {
 	CHSuper(1, SBAppSwitcherController, applicationLaunched, application);
 	
-	[self viewWillAppear];
+	//[self viewWillAppear];
+	SBAppSwitcherBarView *_bottomBar = CHIvar(self, _bottomBar, SBAppSwitcherBarView *);
+	
+	if (isFirmware5x == NO) {
+		for (SBApplicationIcon *icon in [_bottomBar appIcons]) {
+			if ([icon application] == application) {
+				[icon iconImageView].alpha = 1.0f;
+				[icon setShadowsHidden:NO];
+				
+				break;
+			}
+		}
+	} else {
+		for (SBIconView *iconView in [_bottomBar iconViews]) {
+			if ([[iconView icon] application] == application) {
+				[iconView iconImageView].alpha = 1.0f;
+				[iconView setShadowsHidden:NO];
+				
+				break;
+			}
+		}
+	}
 }
 
 CHOptimizedMethod(1, self, void, SBAppSwitcherController, applicationDied, SBApplication *, application)
@@ -535,7 +555,7 @@ CHOptimizedMethod(2, self, CGRect, SBAppSwitcherBarView, _frameForIndex, NSUInte
 }
 
 CHOptimizedMethod(1, self, CGPoint, SBAppSwitcherBarView, _firstPageOffset, CGSize, offset) {
-    CHLog(@"_firstPageOffset");
+    //CHLog(@"_firstPageOffset");
     return CHSuper(1, SBAppSwitcherBarView, _firstPageOffset, offset);
 }
 
